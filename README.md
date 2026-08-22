@@ -71,8 +71,26 @@ DecisionTreeClassifier(max_depth=10, random_state=42)
 
 **Example prediction:** for a sample test transaction (type=CASH_OUT, amount=$226,596, oldbalanceOrg=$0), the model correctly predicted `isFraud = 0`, matching the actual label.
 
-## Conclusion
+## Model Comparison
 
-* **Domain-Driven Feature Engineering Works:** Creating explicit balance discrepancy metrics (`errorBalanceOrig`) increased model precision and recall from ~0.91 to near-perfect performance (~0.996).
-* **Targeted Scope Reduces Noise:** Filtering the training scope strictly to `CASH_OUT` and `TRANSFER` transaction types eliminated false signals from non-risk types (`PAYMENT`, `DEBIT`, `CASH_IN`).
-* **Operational Viability:** The model achieves an optimal balance between catching fraud (1,637 / 1,643 detected) and minimizing customer friction (only 3 false positives out of 552k+ normal transactions).
+Four models were trained and compared to justify the final choice:
+
+| Model | Accuracy | Fraud Precision | Fraud Recall |
+| :--- | :--- | :--- | :--- |
+| Logistic Regression | 0.9982 | 0.88 | 0.46 |
+| Gaussian Naive Bayes | 0.9872 | 0.10 | 0.41 |
+| K-Nearest Neighbors (k=5) | 0.9991 | 0.92 | 0.77 |
+| **Decision Tree (depth=10)** | **1.0000** | **1.00** | **1.00** |
+
+Note: KNN was trained and tested on a smaller, resampled subset (50,000 train / 10,000 test) rather than the full dataset, since it was noticeably slower and did not scale well to millions of rows — another practical drawback compared to the Decision Tree.
+
+## Conclusion & Model Selection
+
+**Why Decision Tree Was Chosen:**
+
+1. **Non-Linear Threshold Boundaries:** Fraudulent account draining follows strict step rules (`errorBalanceOrig != 0`). Linear models like Logistic Regression miss these sharp boundaries, failing to catch 933 fraud cases.
+2. **Feature Interdependence:** Naive Bayes assumes feature independence. Because balance error features are mathematically linked, Naive Bayes generated 10,612 false positives.
+3. **Computational Efficiency:** KNN requires $O(N \cdot M)$ comparisons per prediction, making it unviable for live transactions. The Decision Tree executes in fast $O(\text{depth})$ time.
+
+* **Domain-Driven Feature Engineering Works:** Creating explicit balance discrepancy metrics (`errorBalanceOrig`) increased Decision Tree precision and recall to ~0.996.
+* **Operational Viability:** The Decision Tree achieves an optimal balance between catching fraud (1,637 / 1,643 detected) and minimizing customer friction (only 3 false alarms out of 552k+ normal transactions).
